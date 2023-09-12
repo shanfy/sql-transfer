@@ -5,6 +5,16 @@ import com.yang.constant.CommonConstant;
 import com.yang.constant.KingBaseConstant;
 import com.yang.enums.KSDateFormatEnum;
 import com.yang.enums.SqlCommandType;
+import net.sf.jsqlparser.statement.create.table.ColDataType;
+import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 人大金仓适配
@@ -12,6 +22,93 @@ import com.yang.enums.SqlCommandType;
  * @date 2023-08-25 11:38
  */
 public class KingBaseAdapter extends TransferAdapter {
+
+    public static void main(String[] args) {
+        String sql = "create table office_special_organ\n" +
+                "(\n" +
+                "    id            varchar(32)            not null comment '主键'\n" +
+                "        primary key,\n" +
+                "    organ_id      varchar(32)            not null comment '对应单位id',\n" +
+                "    organ_name    varchar(100)           null comment '单位名称',\n" +
+                "    reply_organ   varchar(50)            null comment '批复单位',\n" +
+                "    reply_date    date                   null comment '批复日期',\n" +
+                "    leader_organ  varchar(50)            null comment '牵头单位',\n" +
+                "    special_time  varchar(20) default '' null comment '专班时限',\n" +
+                "    leader_name   varchar(20) default '' null comment '专班领导名称',\n" +
+                "    leader_duty   varchar(20) default '' null comment '专班领导名称',\n" +
+                "    remark        varchar(500)           null comment '备注',\n" +
+                "    create_org_id varchar(32)            not null comment '创建单位id',\n" +
+                "    created_by    varchar(36)            null comment '创建人',\n" +
+                "    updated_by    varchar(36)            null comment '修改人',\n" +
+                "    created_at    datetime               null comment '创建时间',\n" +
+                "    updated_at    datetime               null comment '更新时间',\n" +
+                "    logic_delete  tinyint(1)  default 0  null comment '逻辑删除:0-否 1-是',\n" +
+                "    special_type  int         default 1  null\n" +
+                ")\n" +
+                "    comment '专班管理信息表';";
+        KingBaseAdapter adapter = new KingBaseAdapter();
+        adapter.transfer(sql);
+    }
+
+    @Override
+    protected void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
+        List<ColumnDefinition> newColumnDefinitions = new ArrayList<>(columnDefinitions.size());
+        columnDefinitions.forEach(columnDefinition -> {
+            ColumnDefinition newColumnDefinition = new ColumnDefinition();
+            newColumnDefinition.setColumnName(columnDefinition.getColumnName());
+            ColDataType colDataType = getColDataType(columnDefinition.getColDataType());
+            newColumnDefinition.setColDataType(colDataType);
+            newColumnDefinition.setColumnSpecStrings(getColumnSpecStrings(columnDefinition.getColumnSpecStrings()));
+            newColumnDefinitions.add(newColumnDefinition);
+        });
+        createTable.setColumnDefinitions(newColumnDefinitions);
+    }
+
+    /**
+     * 去除comment注释
+     */
+    private List<String> getColumnSpecStrings(List<String> columnSpecStrings) {
+        // 临时策略是把注释都舍弃掉，后续有需要再说
+        if(CollectionUtils.isNotEmpty(columnSpecStrings)){
+            String originStr = String.join("-", columnSpecStrings);
+            if(originStr.contains("comment")){
+                String newStr = originStr.substring(0, originStr.indexOf("comment"));
+                return Arrays.stream(StringUtils.split(newStr, "-")).filter(StringUtils::isNotEmpty).collect(Collectors.toList());
+            }
+        }
+        return columnSpecStrings;
+    }
+
+    /**
+     * 替换数据类型
+     */
+    private ColDataType getColDataType(ColDataType colDataType) {
+        String dataTypeStr = colDataType.getDataType();
+        if(StringUtils.equals("varchar", dataTypeStr)){
+            List<String> arguments = colDataType.getArgumentsStringList();
+            if(CollectionUtils.isNotEmpty(arguments)){
+                List<String> newArguments = new ArrayList<>(2);
+                // 固定为char 不然默认bytes, 编码不一样，容纳的字符数量不一致
+                newArguments.add(arguments.get(0) + " char");
+                colDataType.setArgumentsStringList(newArguments);
+            }
+        }else if(StringUtils.equals("datetime", dataTypeStr)){
+            colDataType.setDataType("timestamp");
+        }else if(StringUtils.equals("decimal", dataTypeStr)){
+            colDataType.setDataType("numeric");
+        } else if(StringUtils.equals("tinyint", dataTypeStr)
+                || StringUtils.equals("int", dataTypeStr)
+                || StringUtils.equals("smallint", dataTypeStr)
+                || StringUtils.equals("mediumint", dataTypeStr)
+                || StringUtils.equals("bigint", dataTypeStr)){
+            // kingBase不能指定tiny或者int具体的位数
+            colDataType.setArgumentsStringList(null);
+        } else{
+            // 有需要再加上其他类型
+            return colDataType;
+        }
+        return colDataType;
+    }
 
     @Override
     public String doTransfer(String newSql, SqlCommandType commandType) {

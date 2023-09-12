@@ -3,6 +3,10 @@ package com.yang.adapter;
 import com.yang.constant.CommonConstant;
 import com.yang.constant.OscarConstant;
 import com.yang.enums.SqlCommandType;
+import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+
+import java.util.List;
 
 /**
  * 神通适配
@@ -11,6 +15,11 @@ import com.yang.enums.SqlCommandType;
  */
 public class OscarAdapter extends TransferAdapter {
 
+
+    @Override
+    protected void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
+
+    }
 
     @Override
     public String doTransfer(String newSql, SqlCommandType commandType) {

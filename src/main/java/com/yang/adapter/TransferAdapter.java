@@ -3,7 +3,19 @@ package com.yang.adapter;
 
 import com.yang.constant.CommonConstant;
 import com.yang.enums.SqlCommandType;
+import com.yang.exception.BusinessException;
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Table;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.update.Update;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,6 +34,39 @@ public abstract class TransferAdapter {
         if (lowerCase.contains(CommonConstant.SYMBOL_TOP_QUOTE)){
             originalSql = topQuoteReplace(originalSql);
         }
+        try {
+            String tableName;
+            Statement statement = CCJSqlParserUtil.parse(originalSql);
+            if (statement instanceof CreateTable) {
+                CreateTable createTable = (CreateTable) statement;
+                Table table = createTable.getTable();
+                tableName = table.getName();
+                // 各个列的定义，这里需要将列的类型转为具体数据库对象的类型
+                List<ColumnDefinition> columnDefinitions = createTable.getColumnDefinitions();
+                transferColumnDefinitions(createTable, columnDefinitions);
+
+                String sql = createTable.toString();
+                System.out.println(sql+";");
+
+            } else if (statement instanceof Select) {
+                // SQL语句为SELECT查询
+                Select select = (Select) statement;
+
+            }else if(statement instanceof Insert){
+                // SQL语句为INSERT语句
+                Insert insert = (Insert) statement;
+
+            } else {
+                // 其他未知类型
+                throw new BusinessException("can not support commandType : " + statement);
+            }
+
+
+        } catch (JSQLParserException e) {
+            throw new BusinessException("TransferAdapter Exception: " + e.getMessage());
+        }
+
+
         // 获取首字母到第一个空格之间的字符
         int firstSpaceIndex = originalSql.indexOf(" ");
         String command = originalSql.substring(0, firstSpaceIndex);
@@ -29,6 +74,8 @@ public abstract class TransferAdapter {
 
         return doTransfer(originalSql, commandType);
     }
+
+    protected abstract void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions);
 
     /**
      * 获取操作命令类型

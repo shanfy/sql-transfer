@@ -77,14 +77,8 @@ public class TransferAdapterFactory {
         int size = oldSqlList.size();
         TransferAdapter adapter = getAdapter(dbType);
         List<String> newSqlList = new ArrayList<>(size);
-        Set<String> supportCommands = SqlCommandType.keySet();
         for (int i = 0; i < size; i++) {
             String originalSqlChild = oldSqlList.get(i);
-            int spaceIndex = originalSqlChild.indexOf(CommonConstant.SPACE);
-            String commandType = originalSqlChild.substring(0, spaceIndex);
-            if(!supportCommands.contains(commandType.toUpperCase())){
-                throw new BusinessException("can not support commandType : " + commandType.toUpperCase());
-            }
             newSqlList.add(adapter.transfer(originalSqlChild));
         }
         return StringUtils.join(newSqlList, CommonConstant.SEMICOLON + CommonConstant.SYMBOL_NEW_LINES);

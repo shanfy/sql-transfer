@@ -21,6 +21,13 @@
             <version>3.6</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.4</version>
+        </dependency>
+
+
         <!--sql解析工具 -->
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
