@@ -6,14 +6,13 @@ import com.yang.enums.SqlCommandType;
 import com.yang.exception.BusinessException;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
-import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.Select;
-import net.sf.jsqlparser.statement.update.Update;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -35,19 +34,34 @@ public abstract class TransferAdapter {
             originalSql = topQuoteReplace(originalSql);
         }
         try {
-            String tableName;
             Statement statement = CCJSqlParserUtil.parse(originalSql);
             if (statement instanceof CreateTable) {
                 CreateTable createTable = (CreateTable) statement;
-                Table table = createTable.getTable();
-                tableName = table.getName();
                 // 各个列的定义，这里需要将列的类型转为具体数据库对象的类型
                 List<ColumnDefinition> columnDefinitions = createTable.getColumnDefinitions();
-                transferColumnDefinitions(createTable, columnDefinitions);
+                Map<String, List<String>> listMap = transferColumnDefinitions(createTable, columnDefinitions);
 
-                String sql = createTable.toString();
-                System.out.println(sql+";");
+                // 拼装建表sql+ 创建索引 + 注释
+                StringBuilder sqlBuilder = new StringBuilder(createTable +";\n");
+                if(MapUtils.isNotEmpty(listMap) && listMap.containsKey("comments")){
+                    List<String> comments = listMap.get("comments");
+                    if(CollectionUtils.isNotEmpty(comments)){
+                        for (String comment : comments){
+                            sqlBuilder.append(comment);
+                        }
+                    }
+                }
 
+                if(listMap.containsKey("indexes")){
+                    List<String> indexes = listMap.get("indexes");
+                    if(CollectionUtils.isNotEmpty(indexes)){
+                        for (String index : indexes){
+                            sqlBuilder.append(index);
+                        }
+                    }
+                }
+                System.out.println(">>>>:"+ sqlBuilder);
+                return sqlBuilder.toString();
             } else if (statement instanceof Select) {
                 // SQL语句为SELECT查询
                 Select select = (Select) statement;
@@ -58,24 +72,15 @@ public abstract class TransferAdapter {
 
             } else {
                 // 其他未知类型
-                throw new BusinessException("can not support commandType : " + statement);
+                // throw new BusinessException("can not support commandType : " + statement);
             }
-
-
-        } catch (JSQLParserException e) {
-            throw new BusinessException("TransferAdapter Exception: " + e.getMessage());
+        } catch (JSQLParserException ignore) {
+            // throw new BusinessException("TransferAdapter Exception: " + e.getMessage());
         }
-
-
-        // 获取首字母到第一个空格之间的字符
-        int firstSpaceIndex = originalSql.indexOf(" ");
-        String command = originalSql.substring(0, firstSpaceIndex);
-        SqlCommandType commandType = getCommandType(command);
-
-        return doTransfer(originalSql, commandType);
+        return doTransfer(originalSql);
     }
 
-    protected abstract void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions);
+    protected abstract Map<String, List<String>> transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions);
 
     /**
      * 获取操作命令类型
@@ -88,7 +93,7 @@ public abstract class TransferAdapter {
         return SqlCommandType.UNKNOWN;
     }
 
-    protected abstract String doTransfer(String originSql, SqlCommandType commandType);
+    protected abstract String doTransfer(String originSql);
 
     /**
      * 替换反引号`
@@ -109,5 +114,4 @@ public abstract class TransferAdapter {
     public String sortStrReplace(String originalSql) {
         return originalSql.replaceAll(CommonConstant.SORT_STR_REGEX,CommonConstant.SORT_STR_NEW);
     }
-
 }

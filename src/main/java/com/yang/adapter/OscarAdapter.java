@@ -3,10 +3,12 @@ package com.yang.adapter;
 import com.yang.constant.CommonConstant;
 import com.yang.constant.OscarConstant;
 import com.yang.enums.SqlCommandType;
+import com.yang.exception.BusinessException;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 神通适配
@@ -17,12 +19,12 @@ public class OscarAdapter extends TransferAdapter {
 
 
     @Override
-    protected void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
-
+    protected Map<String, List<String>> transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
+        throw new BusinessException("Oscar not support limit type sql");
     }
 
     @Override
-    public String doTransfer(String newSql, SqlCommandType commandType) {
+    public String doTransfer(String newSql) {
         String lowerCase = newSql.toLowerCase();
         if (lowerCase.contains(OscarConstant.LIKE_STR)) {
             newSql = likeReplaceLoop(newSql);

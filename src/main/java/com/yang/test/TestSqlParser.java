@@ -11,20 +11,28 @@ import java.io.StringReader;
 public class TestSqlParser {
 
     public static void main(String[] args) throws JSQLParserException {
-        String sql = "CREATE TABLE zk.office_staff_question (\n" +
-                "                                       id varchar(36) NOT NULL COMMENT '主键',\n" +
-                "                                       tag varchar(50) NOT NULL COMMENT '本次问卷申请标识',\n" +
-                "                                       staff_id varchar(80) NOT NULL COMMENT '员工id',\n" +
-                "                                       staff_org_id varchar(80) NOT NULL COMMENT '员工单位id',\n" +
-                "                                       operate_type tinyint(1) DEFAULT NULL COMMENT '操作类型：1-立即参加，2-下次再说，3-不感兴趣',\n" +
-                "                                       next_date datetime DEFAULT NULL COMMENT '下次日期',\n" +
-                "                                       created_at datetime DEFAULT NULL COMMENT '创建时间',\n" +
-                "                                       updated_at datetime DEFAULT NULL COMMENT '更新时间',\n" +
-                "                                       created_by varchar(36) DEFAULT NULL COMMENT '创建人',\n" +
-                "                                       updated_by varchar(36) DEFAULT NULL COMMENT '修改人',\n" +
-                "                                       logic_delete tinyint(1) DEFAULT 0 COMMENT '逻辑删除 0-否 1-是',\n" +
-                "                                       PRIMARY KEY (id)\n" +
-                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户问卷调查表';";
+        String sql = "CREATE TABLE office_special_organ\n" +
+                "(\n" +
+                "    id            varchar(32) not null comment '主键',\n" +
+                "    organ_id      varchar(32) not null comment '对应单位id',\n" +
+                "    organ_name    varchar(100) not null comment '单位名称',\n" +
+                "    reply_organ   varchar(50) not null comment '批复单位',\n" +
+                "    reply_date    date        not null comment '批复日期',\n" +
+                "    leader_organ  varchar(50) not null comment '牵头单位',\n" +
+                "    special_time  varchar(20) not null default '' comment '专班时限',\n" +
+                "    leader_name   varchar(20) not null default '' comment '专班领导名称',\n" +
+                "    leader_duty   varchar(20) not null default '' comment '专班领导职务',\n" +
+                "    remark        varchar(500) comment '备注',\n" +
+                "    create_org_id varchar(32) not null comment '创建单位id',\n" +
+                "    created_by    varchar(36)          default null comment '创建人',\n" +
+                "    updated_by    varchar(36)          default null comment '修改人',\n" +
+                "    created_at    datetime             default null comment '创建时间',\n" +
+                "    updated_at    datetime             default null comment '更新时间',\n" +
+                "    logic_delete  tinyint(1)           default 0 comment '逻辑删除:0-否 1-是',\n" +
+                "    primary KEY (id),\n" +
+                "    INDEX idx_username (leader_name)\n" +
+                ") ENGINE = InnoDB\n" +
+                "  DEFAULT CHARSET = utf8 COMMENT ='专班管理信息表';";
 
         String sql1 = "create index idx_organ_tree_area_id\n" +
                 "    on sys_organ_tree (area_id);";

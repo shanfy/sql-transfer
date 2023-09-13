@@ -5,16 +5,18 @@ import com.yang.constant.CommonConstant;
 import com.yang.constant.KingBaseConstant;
 import com.yang.enums.KSDateFormatEnum;
 import com.yang.enums.SqlCommandType;
+import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.table.Index;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 /**
  * 人大金仓适配
@@ -23,61 +25,88 @@ import java.util.stream.Collectors;
  */
 public class KingBaseAdapter extends TransferAdapter {
 
-    public static void main(String[] args) {
-        String sql = "create table office_special_organ\n" +
-                "(\n" +
-                "    id            varchar(32)            not null comment '主键'\n" +
-                "        primary key,\n" +
-                "    organ_id      varchar(32)            not null comment '对应单位id',\n" +
-                "    organ_name    varchar(100)           null comment '单位名称',\n" +
-                "    reply_organ   varchar(50)            null comment '批复单位',\n" +
-                "    reply_date    date                   null comment '批复日期',\n" +
-                "    leader_organ  varchar(50)            null comment '牵头单位',\n" +
-                "    special_time  varchar(20) default '' null comment '专班时限',\n" +
-                "    leader_name   varchar(20) default '' null comment '专班领导名称',\n" +
-                "    leader_duty   varchar(20) default '' null comment '专班领导名称',\n" +
-                "    remark        varchar(500)           null comment '备注',\n" +
-                "    create_org_id varchar(32)            not null comment '创建单位id',\n" +
-                "    created_by    varchar(36)            null comment '创建人',\n" +
-                "    updated_by    varchar(36)            null comment '修改人',\n" +
-                "    created_at    datetime               null comment '创建时间',\n" +
-                "    updated_at    datetime               null comment '更新时间',\n" +
-                "    logic_delete  tinyint(1)  default 0  null comment '逻辑删除:0-否 1-是',\n" +
-                "    special_type  int         default 1  null\n" +
-                ")\n" +
-                "    comment '专班管理信息表';";
-        KingBaseAdapter adapter = new KingBaseAdapter();
-        adapter.transfer(sql);
-    }
-
     @Override
-    protected void transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
+    protected Map<String, List<String>> transferColumnDefinitions(CreateTable createTable, List<ColumnDefinition> columnDefinitions) {
         List<ColumnDefinition> newColumnDefinitions = new ArrayList<>(columnDefinitions.size());
+        Map<String, List<String>> commentMap = new HashMap<>(4);
+        List<String> comments = new ArrayList<>(columnDefinitions.size());
         columnDefinitions.forEach(columnDefinition -> {
             ColumnDefinition newColumnDefinition = new ColumnDefinition();
             newColumnDefinition.setColumnName(columnDefinition.getColumnName());
             ColDataType colDataType = getColDataType(columnDefinition.getColDataType());
             newColumnDefinition.setColDataType(colDataType);
-            newColumnDefinition.setColumnSpecStrings(getColumnSpecStrings(columnDefinition.getColumnSpecStrings()));
+            List<String> columnSpecStrings = getColumnSpecStrings(createTable, columnDefinition, comments);
+            newColumnDefinition.setColumnSpecStrings(columnSpecStrings);
             newColumnDefinitions.add(newColumnDefinition);
         });
+
+        // 收集各个索引信息
+        List<Index> indexList = createTable.getIndexes();
+        if(CollectionUtils.isNotEmpty(indexList)){
+            List<String> indexes = new ArrayList<>(indexList.size());
+            // 最终建表sql中 只保留主键索引，其它索引拼接到最终输出的sql中
+            List<Index> newIndexes = new ArrayList<>(1);
+            indexList.forEach(index->{
+                if(index.getType().equalsIgnoreCase("PRIMARY KEY")){
+                    newIndexes.add(index);
+                }else{
+                    indexes.add("create index " + index.getName() + " on " + createTable.getTable().getName() + " (" + StringUtils.join(index.getColumnsNames(), ",") +" );\n");
+                }
+            });
+            createTable.setIndexes(newIndexes);
+            if(CollectionUtils.isNotEmpty(indexes)){
+                commentMap.put("indexes", indexes);
+            }
+        }
+
+        // 收集表注释
+        List<?> tableOptionsStrings = createTable.getTableOptionsStrings();
+        if(CollectionUtils.isNotEmpty(tableOptionsStrings)){
+            int createSize = tableOptionsStrings.size();
+            for (int i = 0; i < createSize; i++) {
+                if((tableOptionsStrings.get(i)+"").equalsIgnoreCase("comment")){
+                    if( ++i < createSize ){
+                        // 收集表注释内容
+                        comments.add("comment on table " + createTable.getTable().getName() + " is '" + tableOptionsStrings.get(i) +"';\n");
+                    }
+                }
+            }
+            createTable.setTableOptionsStrings(null);
+        }
         createTable.setColumnDefinitions(newColumnDefinitions);
+        commentMap.put("comments", comments);
+        return commentMap;
     }
 
+
     /**
-     * 去除comment注释
+     *收集comment注释
      */
-    private List<String> getColumnSpecStrings(List<String> columnSpecStrings) {
-        // 临时策略是把注释都舍弃掉，后续有需要再说
+    private List<String> getColumnSpecStrings(CreateTable createTable, ColumnDefinition columnDefinition, List<String> columnComments) {
+        String columnName = columnDefinition.getColumnName();
+        Table table = createTable.getTable();
+        String tableName = table.getName();
+
+        List<String> columnSpecStrings = columnDefinition.getColumnSpecStrings();
+        // 收集列注释
         if(CollectionUtils.isNotEmpty(columnSpecStrings)){
-            String originStr = String.join("-", columnSpecStrings);
-            if(originStr.contains("comment")){
-                String newStr = originStr.substring(0, originStr.indexOf("comment"));
-                return Arrays.stream(StringUtils.split(newStr, "-")).filter(StringUtils::isNotEmpty).collect(Collectors.toList());
+            int size = columnSpecStrings.size();
+            List<String> newColumaSpecs = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                if((columnSpecStrings.get(i)+"").equalsIgnoreCase("comment")){
+                    if( ++i < size ){
+                        // 收集列注释内容
+                        columnComments.add("comment on column " + tableName + "." + columnName + " is " + columnSpecStrings.get(i) +";\n");
+                    }
+                }else{
+                    newColumaSpecs.add(columnSpecStrings.get(i));
+                }
             }
+            return newColumaSpecs;
         }
         return columnSpecStrings;
     }
+
 
     /**
      * 替换数据类型
@@ -111,7 +140,7 @@ public class KingBaseAdapter extends TransferAdapter {
     }
 
     @Override
-    public String doTransfer(String newSql, SqlCommandType commandType) {
+    public String doTransfer(String newSql) {
         String lowerCase = newSql.toLowerCase();
 
 

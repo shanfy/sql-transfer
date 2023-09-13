@@ -6,15 +6,18 @@ import com.yang.enums.SqlCommandType;
 import com.yang.exception.BusinessException;
 import com.yang.util.StrUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 国产化db类型配置工厂
  * @author shanfy
  * @date 2023-08-25 11:46
  */
+@Component
 public class TransferAdapterFactory {
 
     /**
@@ -49,7 +52,7 @@ public class TransferAdapterFactory {
      * 暂不支持ddl
      * 注释也未排除，
      */
-    public static String transferSql(String originalSql, String dbType){
+    public String transferSql(String originalSql, String dbType){
         if(StringUtils.isEmpty(originalSql)){
             return CommonConstant.EMPTY;
         }
@@ -66,7 +69,10 @@ public class TransferAdapterFactory {
         if(!keys.contains(dbType)){
             throw new BusinessException("not support this dbType!");
         }
-        // 去除注释  -- 或者 #  todo
+
+        if(originalSql.contains("--") || originalSql.contains("#")){
+            throw new BusinessException("please remove -- or #");
+        }
 
         // 去除多余空格
         originalSql = StrUtils.removeBlank(originalSql);
@@ -77,10 +83,10 @@ public class TransferAdapterFactory {
         int size = oldSqlList.size();
         TransferAdapter adapter = getAdapter(dbType);
         List<String> newSqlList = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            String originalSqlChild = oldSqlList.get(i);
+        oldSqlList.stream().filter(StringUtils::isNotEmpty).forEach(originalSqlChild->{
             newSqlList.add(adapter.transfer(originalSqlChild));
-        }
-        return StringUtils.join(newSqlList, CommonConstant.SEMICOLON + CommonConstant.SYMBOL_NEW_LINES);
+        });
+        return StringUtils.join(newSqlList, CommonConstant.SYMBOL_NEW_LINES);
     }
+
 }
